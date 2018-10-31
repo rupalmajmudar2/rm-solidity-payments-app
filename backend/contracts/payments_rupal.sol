@@ -106,8 +106,12 @@ contract Provider {
 
 contract Payments {
     
+    //Allows us to put some ether into the contract at deployment time
+    //For testing that if the (service consumer) a/c does not pass in ether
+    //the contract will still pay the service provider!
+    //TBD: Add checks to prevent this, then remove this constructor
     constructor() public payable {
-        
+        //temp.
     }
     
     mapping(address => bool) private users;
@@ -115,11 +119,12 @@ contract Payments {
 
     mapping(string => bool) providersExistingByName;    
     mapping(string => Provider) providersByName;
-    mapping(address => bool) providersExistingByAddress;
-    mapping(address => Provider) providersByAddress;
+    //mapping(address => bool) providersExistingByAddress;
+    //mapping(address => Provider) providersByAddress;
     Provider[] providersArray;
     
-    event test_value(uint256 indexed value1);
+    event Log_Value(string providerName, string serviceName, uint256 indexed value);
+    event LogMoneyTransfer(address sender, address receiver, uint256 amount);
     
     function addUser(address _user) public {
         if (users[_user]) return;
@@ -146,12 +151,13 @@ contract Payments {
         if (providersExistingByName[_provName]) return;
         
         Provider newProvider = new Provider(msg.sender, _provName);
-        address msg_sender= msg.sender; //for debugging. Strange 0's get prefixed!
+        
         providersArray.push(newProvider);
         providersByName[_provName]= newProvider;
-        providersByAddress[msg_sender]= newProvider; //unique name & address for each provider. Fair enough?
-        providersExistingByAddress[msg_sender] = true;//TBD: Shd be providersExistingByAddress[newProvider]=true, oder??
         providersExistingByName[_provName]= true;
+        
+        //providersByAddress[msg_sender]= newProvider; //unique name & address for each provider. Fair enough?
+        //providersExistingByAddress[msg_sender] = true;//TBD: Shd be providersExistingByAddress[newProvider]=true, oder??
     }
   
     function getProviders() public view returns (Provider[]) { 
@@ -247,7 +253,7 @@ contract Payments {
        // if (!users[msg.sender]) return;
                 
         uint256 cost = getServicePriceFor(providerName, serviceName);
-                emit test_value(cost);
+        emit Log_Value(providerName, serviceName, cost);
         // make payment -> substract money from caller [address: msg.sender], 
         //send money to the provider [address: address of the providerName]
         //amount: serviceCost
@@ -258,21 +264,33 @@ contract Payments {
         Provider provider= providersByName[providerName];
         pf.withdrawalByAddress(4444, provider.getAddress());*/
 
+        //Step#1: Get money from the account (service consumer) into this contract
         deposit(cost); //TBD: how to get the account to transfer into this contract??
         //Works (only) if I give the amount in the "Value" in remix
         //How do I do this programmatically?
 
+        //Step#2: Pay the service proider!
         Provider provider= providersByName[providerName];
         address addr= provider.getAddress();
-        addr.transfer(cost);
+        //addr.transfer(cost);
+        withdrawalByAddress(cost, addr);
     }
     
     function deposit(uint256 amount) payable public {
         //require(msg.value == amount); TODO: CHK!
         // nothing else to do!
-        //emit LogMoneyTransfer(msg.sender, address(this), amount);
+        emit LogMoneyTransfer(msg.sender, address(this), amount);
     }
     
+    // address.transfer(amount) transfers amount (in ether) 
+    // _TO_ the account represented by address.
+    //
+    function withdrawalByAddress(uint256 amount, address addr) payable public {
+        addr.transfer(amount);
+        emit LogMoneyTransfer(address(this), addr, amount);
+    }
+    
+    //TBD: Is this still required??
     function () payable public {
     }
 }
