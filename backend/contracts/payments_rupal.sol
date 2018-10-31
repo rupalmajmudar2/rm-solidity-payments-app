@@ -9,30 +9,30 @@ library SharedStructs {
 }
 
 //@courtesy https://programtheblockchain.com/posts/2017/12/15/writing-a-contract-that-handles-ether/
-contract PaymentFunctions {
+/*contract PaymentFunctions {
     event LogMoneyTransfer(address sender, address receiver, uint256 amount);
         
     constructor() public payable {
-        //to be removed
+        
     }
     
     function withdrawAll() public {
         msg.sender.transfer(address(this).balance);
     }
 
-    /*
-     * address.transfer(amount) transfers amount (in ether) 
-     * _TO_ the sender
-     */
+    //
+    // address.transfer(amount) transfers amount (in ether) 
+    // _TO_ the sender
+    //
     function withdraw(uint256 amount) payable public {
         msg.sender.transfer(amount);
         //emit LogMoneyTransfer(address(this), msg.sender, amount);
     }
     
-    /*
-     * address.transfer(amount) transfers amount (in ether) 
-     * _TO_ the account represented by address.
-     */
+    
+     // address.transfer(amount) transfers amount (in ether) 
+     // _TO_ the account represented by address.
+     //
     function withdrawalByAddress(uint256 amount, address addr) payable public {
         addr.transfer(amount);
         //emit LogMoneyTransfer(address(this), addr, amount);
@@ -52,23 +52,20 @@ contract PaymentFunctions {
     function getBalance(address addr) public view returns (uint256) {
         return addr.balance;
     }
-}
+}*/
 
 contract Provider {
     
-    //using SService for SharedStructs.Service; Later.
-    
     string providerName;
     address providerAddress;
-        
+    
+    //TBD: using local name say SharedService for SharedStructs.Service: Later.
     SharedStructs.Service[] services;
     mapping(string => SharedStructs.Service) serviceByName;
     mapping(string => bool) servicesExisting;
         
     /**
-     * TODO: We use this constructor for creating a Provider for a Payment.
-     * But should not need to enter this info when deploying the Provider, right??
-     * Or: We shd never deploy this contract, just instantiate from Payments??
+     * Note: We do not need to deploy this contract. Just instantiate from Payments
      **/
     constructor (address _providerAddress, string _providerName) public {
         providerAddress= _providerAddress;
@@ -84,10 +81,10 @@ contract Provider {
         return providerAddress;
     }
     
+    //TBD: Use modifier
     function offerService(string serviceName, uint256 servicePrice) public {
         if (servicesExisting[serviceName]) return;
         
-        // add service to the list of services of the given provider
         SharedStructs.Service memory srv= SharedStructs.Service(serviceName, servicePrice);
         services.push(srv);
         serviceByName[serviceName] = srv;
@@ -99,13 +96,11 @@ contract Provider {
     }
     
     function doesServiceExist(string serviceName) public view returns (bool) {
-        bool exists= servicesExisting[serviceName];
-        return exists;
+        return servicesExisting[serviceName];
     }
     
     function getService(string serviceName) public view returns (SharedStructs.Service) {
-        SharedStructs.Service storage srv= serviceByName[serviceName];
-        return srv;
+        return serviceByName[serviceName];
     }
 }
 
