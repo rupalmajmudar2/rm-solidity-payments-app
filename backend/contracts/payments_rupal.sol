@@ -248,13 +248,19 @@ contract Payments {
         pf.deposit(cost); //Money from the user (msg.sender) to this contract.
         //pf.withdrawalByAddress(cost, providerAddress);
     }*/
+
+    modifier isRegisteredConsumer() {
+        require (users[msg.sender]);
+        _;
+    }
     
-    function makePayment(string providerName, string serviceName) public payable {
-       // if (!users[msg.sender]) return;
+    //TBD: Handle errors
+    function makePayment(string providerName, string serviceName) isRegisteredConsumer() public payable {
+        //if (!users[msg.sender]) return;
                 
         uint256 cost = getServicePriceFor(providerName, serviceName);
         emit Log_Value(providerName, serviceName, cost);
-        // make payment -> substract money from caller [address: msg.sender], 
+        // make payment -> subtract money from caller [address: msg.sender], 
         //send money to the provider [address: address of the providerName]
         //amount: serviceCost
         /*PaymentFunctions pf= new PaymentFunctions();
@@ -264,6 +270,26 @@ contract Payments {
         Provider provider= providersByName[providerName];
         pf.withdrawalByAddress(4444, provider.getAddress());*/
 
+/*
+        //Step#1: Get money from the account (service consumer) into this contract
+        deposit(cost); //TBD: how to get the account to transfer into this contract??
+        //Works (only) if I give the amount in the "Value" in remix
+        //How do I do this programmatically?
+
+        //Step#2: Pay the service proider!
+        Provider provider= providersByName[providerName];
+        address addr= provider.getAddress();
+        //addr.transfer(cost);
+        withdrawalByAddress(cost, addr);
+*/
+        payProviderFromConsumer(providerName, cost);
+    }
+    
+    
+    ///////////////// Transfer Functions /////////////////////////////////////
+    //TBD: Should move to Provider contract. Unless we consider gas costs in the design?
+    function payProviderFromConsumer(string providerName, uint256 cost) public {
+        
         //Step#1: Get money from the account (service consumer) into this contract
         deposit(cost); //TBD: how to get the account to transfer into this contract??
         //Works (only) if I give the amount in the "Value" in remix
