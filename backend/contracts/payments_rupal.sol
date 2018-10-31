@@ -12,29 +12,37 @@ library SharedStructs {
 contract PaymentFunctions {
     event LogMoneyTransfer(address sender, address receiver, uint256 amount);
         
+    constructor() public payable {
+        
+    }
+    
     function withdrawAll() public {
         msg.sender.transfer(address(this).balance);
     }
 
     /*
      * address.transfer(amount) transfers amount (in ether) 
-     * _TO_ the account represented by address.
+     * _TO_ the sender
      */
     function withdraw(uint256 amount) payable public {
         msg.sender.transfer(amount);
-        emit LogMoneyTransfer(address(this), msg.sender, amount);
+        //emit LogMoneyTransfer(address(this), msg.sender, amount);
     }
     
+    /*
+     * address.transfer(amount) transfers amount (in ether) 
+     * _TO_ the account represented by address.
+     */
     function withdrawalByAddress(uint256 amount, address addr) payable public {
         addr.transfer(amount);
-        emit LogMoneyTransfer(address(this), addr, amount);
+        //emit LogMoneyTransfer(address(this), addr, amount);
     }
     
     //@see faq: https://stackoverflow.com/questions/52003763/even-though-i-dont-have-constructor-in-my-code-i-am-getting-error-the-construct
     function deposit(uint256 amount) payable public {
         //require(msg.value == amount); TODO: CHK!
         // nothing else to do!
-        emit LogMoneyTransfer(msg.sender, address(this), amount);
+        //emit LogMoneyTransfer(msg.sender, address(this), amount);
     }
 
     function getBalance() public view returns (uint256) {
@@ -60,6 +68,7 @@ contract Provider {
     /**
      * TODO: We use this constructor for creating a Provider for a Payment.
      * But should not need to enter this info when deploying the Provider, right??
+     * Or: We shd never deploy this contract, just instantiate from Payments??
      **/
     constructor (address _providerAddress, string _providerName) public {
         providerAddress= _providerAddress;
@@ -101,6 +110,11 @@ contract Provider {
 }
 
 contract Payments {
+    
+    constructor() public payable {
+        
+    }
+    
     mapping(address => bool) private users;
     address[] private usersArray;
 
@@ -109,6 +123,8 @@ contract Payments {
     mapping(address => bool) providersExistingByAddress;
     mapping(address => Provider) providersByAddress;
     Provider[] providersArray;
+    
+    event test_value(uint256 indexed value1);
     
     function addUser(address _user) public {
         if (users[_user]) return;
@@ -139,7 +155,7 @@ contract Payments {
         providersArray.push(newProvider);
         providersByName[_provName]= newProvider;
         providersByAddress[msg_sender]= newProvider; //unique name & address for each provider. Fair enough?
-        providersExistingByAddress[msg_sender] = true;
+        providersExistingByAddress[msg_sender] = true;//TBD: Shd be providersExistingByAddress[newProvider]=true, oder??
         providersExistingByName[_provName]= true;
     }
   
@@ -149,7 +165,7 @@ contract Payments {
     
     //@TODO: Review. @see https://ethereum.stackexchange.com/questions/30665/warning-uninitialized-storage-pointer
     //@TODO: Also dunno how to get rid of "Warning: Uninitialized storage pointer"
-    function getAllProviderNames() public view returns (string[]) { 
+    function getAllProviderNames() public returns (string[]) { 
         //uint256 len= providersArray.length + 1;
         //string[] storage names = new string[](len);
         string[] storage names;
@@ -171,12 +187,12 @@ contract Payments {
         provider.offerService(serviceName, servicePrice);
     }
     
-    function getOffers(address providerAddr) public view returns (SharedStructs.Service[]) {
+    /*function getOffers(address providerAddr) public view returns (SharedStructs.Service[]) {
         if (!providersExistingByAddress[providerAddr]) return; 
         
         Provider prov= providersByAddress[providerAddr];
         return prov.getServices();        
-    }
+    }*/
     
     function getOffers(string providerName) public view returns (SharedStructs.Service[]) {
         if (!providersExistingByName[providerName]) return;
@@ -185,23 +201,83 @@ contract Payments {
         return provider.getServices(); 
     }
     
-    function makePayment(address providerAddress, string serviceName) public payable {
+    /*function getServicePriceFor(address providerAddress, string serviceName) public view returns (uint256) {
         if (!users[msg.sender]) return;
-        bool exists = providersExistingByAddress[providerAddress];
+        bool exists= providersExistingByAddress[providerAddress];
         if (!exists) return;
         
-        Provider provider = providersByAddress[providerAddress];
+        Provider provider= providersByAddress[providerAddress];
         if (!provider.doesServiceExist(serviceName)) return;
         
         SharedStructs.Service memory service= provider.getService(serviceName);
-        uint256 serviceCost = service.price; 
+        uint256 serviceCost= service.price; 
+        
+        return serviceCost;
+    }*/
+    
+    modifier providerExists(string providerName) {
+        require (providersExistingByName[providerName]);
+        _;
+    }
+    
+    function getServicePriceFor(string providerName, string serviceName) providerExists(providerName) public view  returns (uint256) {
+        //bool exists= providersExistingByName[providerName];
+        //if (!exists) return 0;
+        
+        Provider provider= providersByName[providerName];
+        bool srvcExists= provider.doesServiceExist(serviceName);
+        if (!srvcExists) return 22;
+        
+        SharedStructs.Service memory service= provider.getService(serviceName);
+        uint256 serviceCost= service.price; 
+        
+        return serviceCost;
+    }
+    
+    //ToDo: Get this to work next
+    /*function makePayment(address providerAddress, string serviceName) public payable {
+        
+        uint256 cost= getServicePriceFor(providerAddress, serviceName);
                 
         // make payment -> substract money from caller [address: msg.sender], 
         //send money to the provider [address: providerAddress]
         //amount: serviceCost
         PaymentFunctions pf= new PaymentFunctions();
         //TODO BUG - serviceCost value comes to be 0 !!
-        pf.deposit(150); //Money from the user (msg.sender) to this contract.
-        pf.withdrawalByAddress(150, providerAddress);
+        pf.deposit(cost); //Money from the user (msg.sender) to this contract.
+        //pf.withdrawalByAddress(cost, providerAddress);
+    }*/
+    
+    function makePayment(string providerName, string serviceName) public payable {
+       // if (!users[msg.sender]) return;
+                
+        uint256 cost = getServicePriceFor(providerName, serviceName);
+                emit test_value(cost);
+        // make payment -> substract money from caller [address: msg.sender], 
+        //send money to the provider [address: address of the providerName]
+        //amount: serviceCost
+        /*PaymentFunctions pf= new PaymentFunctions();
+        //D newD = (new D).value(amount)(arg);
+        pf.deposit(5555); //Money from the user (msg.sender) to this contract.
+        
+        Provider provider= providersByName[providerName];
+        pf.withdrawalByAddress(4444, provider.getAddress());*/
+
+        deposit(cost); //TBD: how to get the account to transfer into this contract??
+        //Works (only) if I give the amount in the "Value" in remix
+        //How do I do this programmatically?
+
+        Provider provider= providersByName[providerName];
+        address addr= provider.getAddress();
+        addr.transfer(cost);
+    }
+    
+    function deposit(uint256 amount) payable public {
+        //require(msg.value == amount); TODO: CHK!
+        // nothing else to do!
+        //emit LogMoneyTransfer(msg.sender, address(this), amount);
+    }
+    
+    function () payable public {
     }
 }
