@@ -117,10 +117,15 @@ contract Payments {
     mapping(address => bool) private users;
     address[] private usersArray;
 
+    /**
+     * TBD: 
+     * @see https://ethereum.stackexchange.com/questions/13167/are-there-well-solved-and-simple-storage-patterns-for-solidity
+     *  Can use "Mapped Structs with Index"
+     *  So that instead of "Provider" in the mapping we use a struct
+     *  Then we don't need a separate providersExistingByName mapping
+     **/
     mapping(string => bool) providersExistingByName;    
     mapping(string => Provider) providersByName;
-    //mapping(address => bool) providersExistingByAddress;
-    //mapping(address => Provider) providersByAddress;
     Provider[] providersArray;
     
     event Log_Value(string providerName, string serviceName, uint256 indexed value);
@@ -155,9 +160,6 @@ contract Payments {
         providersArray.push(newProvider);
         providersByName[_provName]= newProvider;
         providersExistingByName[_provName]= true;
-        
-        //providersByAddress[msg_sender]= newProvider; //unique name & address for each provider. Fair enough?
-        //providersExistingByAddress[msg_sender] = true;//TBD: Shd be providersExistingByAddress[newProvider]=true, oder??
     }
   
     function getProviders() public view returns (Provider[]) { 
@@ -166,6 +168,7 @@ contract Payments {
     
     //@TODO: Review. @see https://ethereum.stackexchange.com/questions/30665/warning-uninitialized-storage-pointer
     //@TODO: Also dunno how to get rid of "Warning: Uninitialized storage pointer"
+    //@see https://ethereum.stackexchange.com/questions/30665/warning-uninitialized-storage-pointer
     function getAllProviderNames() public returns (string[]) { 
         //uint256 len= providersArray.length + 1;
         //string[] storage names = new string[](len);
@@ -188,13 +191,6 @@ contract Payments {
         provider.offerService(serviceName, servicePrice);
     }
     
-    /*function getOffers(address providerAddr) public view returns (SharedStructs.Service[]) {
-        if (!providersExistingByAddress[providerAddr]) return; 
-        
-        Provider prov= providersByAddress[providerAddr];
-        return prov.getServices();        
-    }*/
-    
     function getOffers(string providerName) public view returns (SharedStructs.Service[]) {
         if (!providersExistingByName[providerName]) return;
         
@@ -202,51 +198,40 @@ contract Payments {
         return provider.getServices(); 
     }
     
-    /*function getServicePriceFor(address providerAddress, string serviceName) public view returns (uint256) {
-        if (!users[msg.sender]) return;
-        bool exists= providersExistingByAddress[providerAddress];
-        if (!exists) return;
-        
-        Provider provider= providersByAddress[providerAddress];
-        if (!provider.doesServiceExist(serviceName)) return;
-        
-        SharedStructs.Service memory service= provider.getService(serviceName);
-        uint256 serviceCost= service.price; 
-        
-        return serviceCost;
-    }*/
-    
     modifier providerExists(string providerName) {
         require (providersExistingByName[providerName]);
         _;
     }
     
-    function getServicePriceFor(string providerName, string serviceName) providerExists(providerName) public view  returns (uint256) {
+    //TBD: Should I be calling the other modifier #providerExists ?
+    modifier serviceExists(string providerName, string serviceName) {
+        require (providersExistingByName[providerName]);
+        
+        Provider provider= providersByName[providerName];
+        require ( provider.doesServiceExist(serviceName) );
+        _;
+    }
+    
+    function getServicePriceFor(string providerName, string serviceName) 
+                serviceExists(providerName,serviceName) public view  returns (uint256) {
         //bool exists= providersExistingByName[providerName];
         //if (!exists) return 0;
         
+        //TBD: This is being done twice now - once in #serviceExists
         Provider provider= providersByName[providerName];
-        bool srvcExists= provider.doesServiceExist(serviceName);
-        if (!srvcExists) return 22;
         
         SharedStructs.Service memory service= provider.getService(serviceName);
-        uint256 serviceCost= service.price; 
-        
-        return serviceCost;
+        return service.price; 
     }
     
-    //ToDo: Get this to work next
+    //ToDo: Get this to work next: Separate PaymentFunctions for deposits/withdrawals
     /*function makePayment(address providerAddress, string serviceName) public payable {
         
         uint256 cost= getServicePriceFor(providerAddress, serviceName);
-                
-        // make payment -> substract money from caller [address: msg.sender], 
-        //send money to the provider [address: providerAddress]
-        //amount: serviceCost
         PaymentFunctions pf= new PaymentFunctions();
-        //TODO BUG - serviceCost value comes to be 0 !!
+        D newD = (new D).value(amount)(arg);
         pf.deposit(cost); //Money from the user (msg.sender) to this contract.
-        //pf.withdrawalByAddress(cost, providerAddress);
+        pf.withdrawalByAddress(cost, providerAddress);
     }*/
 
     modifier isRegisteredConsumer() {
@@ -256,49 +241,30 @@ contract Payments {
     
     //TBD: Handle errors
     function makePayment(string providerName, string serviceName) isRegisteredConsumer() public payable {
-        //if (!users[msg.sender]) return;
-                
+        
         uint256 cost = getServicePriceFor(providerName, serviceName);
         emit Log_Value(providerName, serviceName, cost);
-        // make payment -> subtract money from caller [address: msg.sender], 
-        //send money to the provider [address: address of the providerName]
-        //amount: serviceCost
+       
         /*PaymentFunctions pf= new PaymentFunctions();
-        //D newD = (new D).value(amount)(arg);
-        pf.deposit(5555); //Money from the user (msg.sender) to this contract.
-        
-        Provider provider= providersByName[providerName];
+        pf.deposit(cost); //Money from the user (msg.sender) to this contract.
         pf.withdrawalByAddress(4444, provider.getAddress());*/
 
-/*
-        //Step#1: Get money from the account (service consumer) into this contract
-        deposit(cost); //TBD: how to get the account to transfer into this contract??
-        //Works (only) if I give the amount in the "Value" in remix
-        //How do I do this programmatically?
-
-        //Step#2: Pay the service proider!
-        Provider provider= providersByName[providerName];
-        address addr= provider.getAddress();
-        //addr.transfer(cost);
-        withdrawalByAddress(cost, addr);
-*/
         payProviderFromConsumer(providerName, cost);
     }
     
-    
-    ///////////////// Transfer Functions /////////////////////////////////////
+    ///////////////// Fund Transfer Functions /////////////////////////////////////
     //TBD: Should move to Provider contract. Unless we consider gas costs in the design?
+    //TBD : Using the PaymentFunctions did not work. Understand why!
     function payProviderFromConsumer(string providerName, uint256 cost) public {
         
         //Step#1: Get money from the account (service consumer) into this contract
         deposit(cost); //TBD: how to get the account to transfer into this contract??
         //Works (only) if I give the amount in the "Value" in remix
-        //How do I do this programmatically?
+        //TBD - How do I do that programmatically? Pass value in the webjs call?
 
         //Step#2: Pay the service proider!
         Provider provider= providersByName[providerName];
         address addr= provider.getAddress();
-        //addr.transfer(cost);
         withdrawalByAddress(cost, addr);
     }
     
@@ -314,9 +280,5 @@ contract Payments {
     function withdrawalByAddress(uint256 amount, address addr) payable public {
         addr.transfer(amount);
         emit LogMoneyTransfer(address(this), addr, amount);
-    }
-    
-    //TBD: Is this still required??
-    function () payable public {
     }
 }
