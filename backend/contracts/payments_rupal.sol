@@ -13,7 +13,7 @@ contract PaymentFunctions {
     event LogMoneyTransfer(address sender, address receiver, uint256 amount);
         
     constructor() public payable {
-        
+        //to be removed
     }
     
     function withdrawAll() public {
